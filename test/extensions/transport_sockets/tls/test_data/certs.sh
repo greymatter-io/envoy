@@ -111,6 +111,12 @@ generate_rsa_key san_dns3
 generate_x509_cert san_dns3 intermediate_ca
 rm -f san_dns3_cert.cfg
 
+# Generate san_dns4_cert.pm (signed by intermediate_ca_cert.pem).
+cp -f san_dns_cert.cfg san_dns4_cert.cfg
+generate_rsa_key san_dns4
+generate_x509_cert san_dns4 intermediate_ca
+rm -f san_dns4_cert.cfg
+
 # Concatenate san_dns3_cert.pem and Test Intermediate CA (intermediate_ca_cert.pem) to create valid certificate chain.
 cat san_dns3_cert.pem intermediate_ca_cert.pem > san_dns3_chain.pem
 
@@ -186,14 +192,23 @@ generate_rsa_key expired_san_uri
 generate_x509_cert expired_san_uri ca -365
 rm -f expired_san_uri_cert.cfg
 
-# Initialize information for CRL process
+# Initialize information for root CRL process
 touch crl_index.txt crl_index.txt.attr
 echo 00 > crl_number
 
-# Revoke the certificate and generate a CRL
+# Revoke the certificate and generate a CRL (using root)
 openssl ca -revoke san_dns_cert.pem -keyfile ca_key.pem -cert ca_cert.pem -config ca_cert.cfg
 openssl ca -gencrl -keyfile ca_key.pem -cert ca_cert.pem -out ca_cert.crl -config ca_cert.cfg
 cat ca_cert.pem ca_cert.crl > ca_cert_with_crl.pem
+
+# Initialize information for intermediate CRL process
+touch intermediate_crl_index.txt crl_index.txt.attr
+echo 00 > intermediate_crl_number
+
+# Revoke the certificate and generate a CRL (using intermediate)
+openssl ca -revoke san_dns3_cert.pem -keyfile intermediate_ca_key.pem -cert intermediate_ca_cert.pem -config intermediate_ca_cert.cfg
+openssl ca -gencrl -keyfile intermediate_ca_key.pem -cert intermediate_ca_cert.pem -out intermediate_ca_cert.crl -config intermediate_ca_cert.cfg
+cat ca_cert.pem intermediate_ca_cert.pem intermediate_ca_cert.crl > intermediate_ca_cert_with_crl.pem
 
 # Write session ticket key files
 openssl rand 80 > ticket_key_a
@@ -203,3 +218,4 @@ openssl rand 79 > ticket_key_wrong_len
 # Generate a certificate with no subject CN and no altnames.
 generate_rsa_key no_subject
 generate_x509_cert_nosubject no_subject ca
+

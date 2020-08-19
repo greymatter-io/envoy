@@ -27,6 +27,7 @@
 #include "test/extensions/transport_sockets/tls/test_data/no_san_cert_info.h"
 #include "test/extensions/transport_sockets/tls/test_data/password_protected_cert_info.h"
 #include "test/extensions/transport_sockets/tls/test_data/san_dns2_cert_info.h"
+#include "test/extensions/transport_sockets/tls/test_data/san_dns4_cert_info.h"
 #include "test/extensions/transport_sockets/tls/test_data/san_dns_cert_info.h"
 #include "test/extensions/transport_sockets/tls/test_data/san_uri_cert_info.h"
 #include "test/extensions/transport_sockets/tls/test_data/selfsigned_ecdsa_p256_cert_info.h"
@@ -4166,6 +4167,91 @@ TEST_P(SslSocketTest, RevokedCertificateCRLInTrustedCA) {
   testUtil(successful_test_options.setExpectedSerialNumber(TEST_SAN_DNS2_CERT_SERIAL));
 }
 
+TEST_P(SslSocketTest, RevokedIntermediateCertificate) {
+
+  const std::string server_ctx_yaml = R"EOF(
+  common_tls_context:
+    tls_certificates:
+      certificate_chain:
+        filename: "{{ test_tmpdir }}/unittestcert.pem"
+      private_key:
+        filename: "{{ test_tmpdir }}/unittestkey.pem"
+    validation_context:
+      trusted_ca:
+        filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/intermediate_ca_cert.pem"
+      crl:
+        filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/intermediate_ca_cert.crl"
+)EOF";
+
+  // This should fail, since the certificate has been revoked.
+  const std::string revoked_client_ctx_yaml = R"EOF(
+  common_tls_context:
+    tls_certificates:
+      certificate_chain:
+        filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns3_cert.pem"
+      private_key:
+        filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns3_key.pem"
+)EOF";
+
+  TestUtilOptions revoked_test_options(revoked_client_ctx_yaml, server_ctx_yaml, false, GetParam());
+  testUtil(revoked_test_options.setExpectedServerStats("ssl.fail_verify_error"));
+
+  // This should succeed, since the cert isn't revoked.
+  const std::string successful_client_ctx_yaml = R"EOF(
+  common_tls_context:
+    tls_certificates:
+      certificate_chain:
+        filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns4_cert.pem"
+      private_key:
+        filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns4_key.pem"
+)EOF";
+
+  TestUtilOptions successful_test_options(successful_client_ctx_yaml, server_ctx_yaml, true,
+                                          GetParam());
+  testUtil(successful_test_options.setExpectedSerialNumber(TEST_SAN_DNS4_CERT_SERIAL));
+}
+
+TEST_P(SslSocketTest, RevokedIntermediateCertificateCRLInTrustedCA) {
+
+  const std::string server_ctx_yaml = R"EOF(
+  common_tls_context:
+    tls_certificates:
+      certificate_chain:
+        filename: "{{ test_tmpdir }}/unittestcert.pem"
+      private_key:
+        filename: "{{ test_tmpdir }}/unittestkey.pem"
+    validation_context:
+      trusted_ca:
+        filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/intermediate_ca_cert_with_crl.pem"
+)EOF";
+
+  // This should fail, since the certificate has been revoked.
+  const std::string revoked_client_ctx_yaml = R"EOF(
+  common_tls_context:
+    tls_certificates:
+      certificate_chain:
+        filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns3_cert.pem"
+      private_key:
+        filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns3_key.pem"
+)EOF";
+
+  TestUtilOptions revoked_test_options(revoked_client_ctx_yaml, server_ctx_yaml, false, GetParam());
+  testUtil(revoked_test_options.setExpectedServerStats("ssl.fail_verify_error"));
+
+  // This should succeed, since the cert isn't revoked.
+  const std::string successful_client_ctx_yaml = R"EOF(
+  common_tls_context:
+    tls_certificates:
+      certificate_chain:
+        filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns4_cert.pem"
+      private_key:
+        filename: "{{ test_rundir }}/test/extensions/transport_sockets/tls/test_data/san_dns4_key.pem"
+)EOF";
+  TestUtilOptions successful_test_options(successful_client_ctx_yaml, server_ctx_yaml, true,
+                                          GetParam());
+  testUtil(successful_test_options.setExpectedSerialNumber(TEST_SAN_DNS4_CERT_SERIAL));
+}
+
 TEST_P(SslSocketTest, GetRequestedServerName) {
   envoy::config::listener::v3::Listener listener;
   envoy::config::listener::v3::FilterChain* filter_chain = listener.add_filter_chains();
@@ -5215,3 +5301,4 @@ TEST_P(SslSocketTest, RsaAndEcdsaPrivateKeyProviderMultiCertFail) {
 } // namespace TransportSockets
 } // namespace Extensions
 } // namespace Envoy
+
