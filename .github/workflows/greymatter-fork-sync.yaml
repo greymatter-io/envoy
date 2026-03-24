@@ -1,0 +1,27 @@
+name: Sync Fork
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs daily at midnight UTC
+  workflow_dispatch: # Allows manual triggering from the Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetches all history for all branches
+          token: ${{ secrets.ENVOY_FORK_SYNC_TOKEN }}
+
+      - name: Sync all branches from upstream
+        run: |
+          git remote add upstream git@github.com:envoyproxy/envoy.git
+          git fetch upstream
+
+          for branch in $(git branch -r | grep 'upstream/' | grep -v 'HEAD' | sed 's/upstream\///'); do
+            echo "Syncing branch: $branch"
+            git checkout -B "$branch" "upstream/$branch"
+            git push origin "$branch" --force
+          done
